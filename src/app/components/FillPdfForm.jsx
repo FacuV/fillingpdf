@@ -9,6 +9,7 @@ const FillPdfForm = () => {
   const [formData, setFormData] = useState({});
   const [fieldIds, setFieldIds] = useState([]);
   const [updatedPdfUrl, setUpdatedPdfUrl] = useState(null);
+  const [pdfFile, setPdfFile] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -18,13 +19,17 @@ const FillPdfForm = () => {
     }));
   };
 
-  const getFieldIds = async () => {
-    const localFile = '/form122c2.pdf';
-    const response = await fetch(localFile);
-    if (!response.ok) throw new Error(`Error fetching PDF: ${response.statusText}`);
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const arrayBuffer = await file.arrayBuffer();
+      setPdfFile(arrayBuffer);
+      getFieldIds(arrayBuffer);
+    }
+  };
 
-    const existingPdfBytes = await response.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(existingPdfBytes);
+  const getFieldIds = async (arrayBuffer) => {
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
     const form = pdfDoc.getForm();
     const fields = form.getFields();
     const ids = fields.map(field => field.getName());
@@ -32,36 +37,29 @@ const FillPdfForm = () => {
   };
 
   const fillPdf = async (data) => {
-    const localFile = '/form122c2.pdf';
-    const response = await fetch(localFile);
-    if (!response.ok) throw new Error(`Error fetching PDF: ${response.statusText}`);
-  
-    const existingPdfBytes = await response.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(existingPdfBytes);
+    if (!pdfFile) return;
+
+    const pdfDoc = await PDFDocument.load(pdfFile);
     const form = pdfDoc.getForm();
-  
+
     fieldIds.forEach(id => {
       const field = form.getField(id);
-      
+
       if (field) {
         if (field instanceof PDFTextField) {
           field.setText(data[id] || '');
         } else if (field instanceof PDFCheckBox) {
-          const isChecked = data[id] === 'true';
+          const isChecked = data[id] === 'true'; // o cualquier lógica que uses
           field.check(isChecked);
         }
       }
     });
-  
+
     const pdfBytes = await pdfDoc.save();
     const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
     const pdfUrl = URL.createObjectURL(pdfBlob);
     setUpdatedPdfUrl(pdfUrl);
   };
-
-  useEffect(() => {
-    getFieldIds();
-  }, []);
 
   useEffect(() => {
     if (fieldIds.length > 0) {
@@ -70,8 +68,9 @@ const FillPdfForm = () => {
   }, [formData, fieldIds]);
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 w-full mx-10">
-      <div className="w-full md:w-1/2 p-4 bg-gray-400 shadow-md rounded-lg overflow-y-auto">
+    <div className="flex flex-col md:flex-row">
+      <div className="w-full md:w-1/2 p-4 bg-white shadow-md rounded-lg">
+        <input type="file" accept="application/pdf" onChange={handleFileChange} className="mb-4" />
         {fieldIds.map(id => (
           <InputField
             key={id}
@@ -87,7 +86,7 @@ const FillPdfForm = () => {
           Descargar PDF
         </button>
       </div>
-      <div className="w-full md:w-1/2 p-4 bg-gray-400 shadow-md rounded-lg">
+      <div className="w-full md:w-1/2 p-4">
         {updatedPdfUrl && <PdfViewer pdfUrl={updatedPdfUrl} />}
       </div>
     </div>
